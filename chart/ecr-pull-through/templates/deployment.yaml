@@ -59,10 +59,3 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      volumes:
-        - name: tls
-          secret:
-            secretName: {{ include "ecr-pull-through.fullname" . }}-tls
-        - name: config
-          configMap:
-            name: {{ include "ecr-pull-through.fullname" . }}
