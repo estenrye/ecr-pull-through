@@ -141,6 +141,17 @@ func handleMutate(w http.ResponseWriter, r *http.Request) {
 	w.Write(mutated)
 }
 
+// Helper function to process Docker Hub official images
+func isDockerHubOfficialImage(image string) bool {
+	// Handle both "nginx" and "docker.io/nginx" format
+	if !strings.Contains(image, "/") {
+		return true
+	}
+	// Handle "docker.io/library/nginx" or "docker.io/nginx" format
+	parts := strings.Split(image, "/")
+	return len(parts) <= 3 && parts[0] == "docker.io" && (len(parts) == 2 || parts[1] == "library")
+}
+
 func actuallyMutate(body []byte) ([]byte, error) {
 	// unmarshal request into AdmissionReview struct
 	admReview := v1beta1.AdmissionReview{}
