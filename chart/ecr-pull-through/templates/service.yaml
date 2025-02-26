@@ -2,14 +2,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "ecr-pull-through.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ecr-pull-through.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: 8443
       protocol: TCP
-      name: http
+      name: https
   selector:
     {{- include "ecr-pull-through.selectorLabels" . | nindent 4 }}

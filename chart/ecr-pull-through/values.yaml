@@ -1,8 +1,37 @@
 # Default values for ecr-pull-through.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+
+# disableWebhookNamespaceSelector is used to disable the webhook namespace selector. If set to true, the webhook will not filter namespaces based on selector criteria.
+# This is useful for testing or if you want the webhook to operate in all namespaces.
 disableWebhookNamespaceSelector: false
-webhookNamspaceSelector:
+
+# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+replicaCount: 2
+
+# useCertManager is used to enable or disable the use of cert-manager for managing TLS certificates. If set to true, cert-manager will be used to manage the TLS certificates for the webhook.
+useCertManager: true
+tls:
+  caBundle: replaceMe
+  cert: replaceMe
+  key: replaceMe
+
+awsRegion: "eu-west-1"
+awsAccountId: "1234567890"
+
+registries:
+  - quay.io
+  - docker.io
+  - ghcr.io
+  - registry.k8s.io
+
+# WebhookNamespaceSelector defines which namespaces the webhook will operate in.
+# Only pods in namespaces with the specified labels will be processed by the webhook.
+WebhookNamespaceSelector:
+# # By default, the webhook uses a whitelist approach and only processes pods in namespaces labeled with 'pull-through-enabled: "true"'
+  # matchLabels:
+  #   pull-through-enabled: "true"
+# # In our environment, we take a blacklist approach and only allow the webhook to operate in namespaces that are not kube-system or cert-manager.
   matchExpressions:
   - key: kubernetes.io/metadata.name
     operator: NotIn
@@ -10,43 +39,38 @@ webhookNamspaceSelector:
     - kube-system
     - cert-manager
 
-useCertManager: true
-ecrPullThrough:
-  awsRegion: us-west-2
-  awsAccountId: "123456789012"
-  registries:
-    - quay.io
-    - docker.io
-    - ghcr.io
-    - registry.k8s.io
-
-tls:
-  caBundle: replaceMe
-  cert: replaceMe
-  key: replaceMe
-
-replicaCount: 2
-
+# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
   repository: ghcr.io/estenrye/ecr-pull-through
+  
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "0.0.56"
 
+# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
+# This is to override the chart name.
 nameOverride: ""
 fullnameOverride: ""
 
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
   # Annotations to add to the service account
   annotations: {}
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
 
 podSecurityContext: {}
   # fsGroup: 2000
@@ -59,28 +83,38 @@ securityContext: {}
   # runAsNonRoot: true
   # runAsUser: 1000
 
+# This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
+  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
   type: ClusterIP
-  port: 443
+  # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
+  port: 8443
 
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
 
+# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+livenessProbe:
+  httpGet:
+    path: /
+    port: https
+readinessProbe:
+  httpGet:
+    path: /
+    port: https
+
+# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
   enabled: false
   minReplicas: 1
-  maxReplicas: 100
+  maxReplicas: 3
   targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
 
 nodeSelector: {}
 

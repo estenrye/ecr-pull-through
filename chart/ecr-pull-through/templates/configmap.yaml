@@ -2,10 +2,14 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   name: {{ include "ecr-pull-through.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ecr-pull-through.labels" . | nindent 4 }}
 data:
   registries.yaml: |
-    awsRegion: {{ .Values.ecrPullThrough.awsRegion }}
-    awsAccountId: {{ .Values.ecrPullThrough.awsAccountId | quote }}
-    registries: {{ .Values.ecrPullThrough.registries | toYaml | nindent 6 }}
+    awsRegion: {{ required "AWS region is required" .Values.awsRegion }}
+    awsAccountId: {{ required "AWS account ID is required" .Values.awsAccountId }}
+    registries:
+    {{- range .Values.registries }}
+      - {{ . }}
+    {{- end }}

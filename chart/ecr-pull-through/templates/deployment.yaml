@@ -2,6 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "ecr-pull-through.fullname" . }}
+<<<<<<< HEAD
+=======
+  namespace: {{ .Release.Namespace }}
+>>>>>>> affc759 (closes #8: added helm chart and updated codebase with fixed log message and config/tls paths. Helm uses cert-manager.)
   labels:
     {{- include "ecr-pull-through.labels" . | nindent 4 }}
 spec:
@@ -18,42 +22,67 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "ecr-pull-through.selectorLabels" . | nindent 8 }}
+        {{- include "ecr-pull-through.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "ecr-pull-through.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - name: http
-              containerPort: 8443
+            - containerPort: 8443
               protocol: TCP
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           livenessProbe:
             httpGet:
-              path: /
-              port: http
+              path: /health
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /
-              port: http
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+              path: /ready
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
           volumeMounts:
-            - name: tls
-              mountPath: "/tls"
-              readOnly: true
             - name: config
-              mountPath: "/conf"
+              mountPath: /etc/ecr-pull-through
               readOnly: true
+            - name: certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "ecr-pull-through.fullname" . }}
+        - name: certs
+          secret:
+            secretName: {{ include "ecr-pull-through.fullname" . }}-tls
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -66,10 +95,3 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      volumes:
-        - name: tls
-          secret:
-            secretName: {{ include "ecr-pull-through.fullname" . }}-tls
-        - name: config
-          configMap:
-            name: {{ include "ecr-pull-through.fullname" . }}
