@@ -16,8 +16,8 @@ tls:
   cert: replaceMe
   key: replaceMe
 
-awsRegion: "eu-west-1"
-awsAccountId: "1234567890"
+awsRegion: ""
+awsAccountId: ""
 
 registries:
   - quay.io
