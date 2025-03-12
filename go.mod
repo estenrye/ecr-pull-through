@@ -7,7 +7,7 @@ toolchain go1.24.0
 require (
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.32.2
-	k8s.io/apimachinery v0.32.2
+	k8s.io/apimachinery v0.32.3
 )
 
 require (
