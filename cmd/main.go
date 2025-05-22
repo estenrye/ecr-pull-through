@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,7 +26,6 @@ var config *Config
 
 func generatePatch(registryList []string, specKey string, containerIndex int, awsAccountId string, awsRegion string, containerImage string, podNamespace string, podGeneratedName string) (bool, map[string]string) {
 	ecrRegistryHostname := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com", awsAccountId, awsRegion)
-	dockerHubPullThroughCacheConfigured := false
 
 	// shortcut to avoid patching images that are already patched.
 	if strings.HasPrefix(containerImage, ecrRegistryHostname) {
@@ -41,73 +41,30 @@ func generatePatch(registryList []string, specKey string, containerIndex int, aw
 		return false, nil
 	}
 
-	// Loop through the list of configured pull-through cache registries.
-	// If the image contains a registry prefix, patch it with the ECR pull through cache image name.
-	for _, registry := range registryList {
+	parts := strings.Split(containerImage, "/")
 
-		// Note for later whether the docker.io registry is in the list of configured registries
-		// This value is used to trigger docker.io specific logic if we exit this loop without
-		// patching the image.
-		if registry == "docker.io" {
-			dockerHubPullThroughCacheConfigured = true
+	if slices.Contains(registryList, parts[0]) || 
+	   (slices.Contains(registryList, "docker.io") && (isDockerHubOfficialImage(containerImage) || isDockerHubUserImage(containerImage))) {
+		newImage := fmt.Sprintf("%s/%s", ecrRegistryHostname, containerImage)
+		if isDockerHubOfficialImage(containerImage) {
+			if len(parts) == 1 {
+				newImage = fmt.Sprintf("%s/docker.io/library/%s", ecrRegistryHostname, parts[0])
+			} else if len(parts) == 2 && parts[0] == "docker.io" {
+				newImage = fmt.Sprintf("%s/docker.io/library/%s", ecrRegistryHostname, parts[1])
+			} else {
+				newImage = fmt.Sprintf("%s/docker.io/%s", ecrRegistryHostname, containerImage)
+			}
+		} else if len(parts) == 2 && isDockerHubUserImage(containerImage) {
+			newImage = fmt.Sprintf("%s/docker.io/%s", ecrRegistryHostname, containerImage)
 		}
 
-		if strings.HasPrefix(containerImage, registry) {
-			newImage := fmt.Sprintf("%s/%s", ecrRegistryHostname, containerImage)
+		log.Printf("{ \"appliedPatch\": true, \"podNamespace\": \"%s\", \"podGeneratedName\": \"%s\", \"specKey\": \"%s\", \"index\": %d, \"originalImage\": \"%s\", \"newImage\": \"%s\" }",
+		podNamespace, podGeneratedName, specKey, containerIndex, containerImage, newImage)
 
-			// split containerImage to find out if it has two or three parts.
-			// if it has three parts, like docker.io/foo/bar, then it is not a library image.
-			// if it has two parts, like docker.io/bar, then it is a library image and needs library injected into the path.
-			// don't do this for registry.k8s.io images, as they don't follow the spec.
-			parts := strings.Split(containerImage, "/")
-			if len(parts) == 2 && registry != "registry.k8s.io" {
-				newImage = fmt.Sprintf("%s/%s/library/%s", ecrRegistryHostname, parts[0], parts[1])
-			}
-
-			log.Printf("{ \"appliedPatch\": true, \"podNamespace\": \"%s\", \"podGeneratedName\": \"%s\", \"specKey\": \"%s\", \"index\": %d, \"originalImage\": \"%s\", \"newImage\": \"%s\" }",
-				podNamespace, podGeneratedName, specKey, containerIndex, containerImage, newImage)
-
-			return true, map[string]string{
-				"op":    "replace",
-				"path":  fmt.Sprintf("/spec/%s/%d/image", specKey, containerIndex),
-				"value": newImage,
-			}
-		}
-	}
-
-	// At this point, the image has not been previously treated by the controller
-	// and does not contain any registry prefixes that have been defined in the configMap.
-	// We also know whether the docker.io registry is in the list of configured registries.
-	// We need to check if the image is a library image or not.
-
-	if dockerHubPullThroughCacheConfigured {
-		parts := strings.Split(containerImage, "/")
-		// This logic handles library images without a registry prefix.
-		if len(parts) == 1 {
-			newImage := fmt.Sprintf("%s/docker.io/library/%s", ecrRegistryHostname, containerImage)
-
-			log.Printf("{ \"appliedPatch\": true, \"podNamespace\": \"%s\", \"podGeneratedName\": \"%s\", \"specKey\": \"%s\", \"index\": %d, \"originalImage\": \"%s\", \"newImage\": \"%s\" }",
-				podNamespace, podGeneratedName, specKey, containerIndex, containerImage, newImage)
-
-			return true, map[string]string{
-				"op":    "replace",
-				"path":  fmt.Sprintf("/spec/%s/%d/image", specKey, containerIndex),
-				"value": newImage,
-			}
-		}
-
-		// this logic handles non-library images without a registry prefix.
-		if len(parts) == 2 {
-			newImage := fmt.Sprintf("%s/docker.io/%s", ecrRegistryHostname, containerImage)
-
-			log.Printf("{ \"appliedPatch\": true, \"podNamespace\": \"%s\", \"podGeneratedName\": \"%s\", \"specKey\": \"%s\", \"index\": %d, \"originalImage\": \"%s\", \"newImage\": \"%s\" }",
-				podNamespace, podGeneratedName, specKey, containerIndex, containerImage, newImage)
-
-			return true, map[string]string{
-				"op":    "replace",
-				"path":  fmt.Sprintf("/spec/%s/%d/image", specKey, containerIndex),
-				"value": newImage,
-			}
+		return true, map[string]string{
+			"op":    "replace",
+			"path":  fmt.Sprintf("/spec/%s/%d/image", specKey, containerIndex),
+			"value": newImage,
 		}
 	}
 
@@ -150,6 +107,31 @@ func isDockerHubOfficialImage(image string) bool {
 	// Handle "docker.io/library/nginx" or "docker.io/nginx" format
 	parts := strings.Split(image, "/")
 	return len(parts) <= 3 && parts[0] == "docker.io" && (len(parts) == 2 || parts[1] == "library")
+}
+
+func isDockerHubUserImage(image string) bool {
+	if !strings.Contains(image, "/") {
+		return false
+	}
+	parts := strings.Split(image, "/")
+
+	if len(parts) == 1 || len(parts) > 3 {
+		return false
+	}
+
+	if parts[0] != "docker.io" && strings.Contains(parts[0], ".") {
+		return false
+	}
+
+	if parts[0] == "docker.io" && len(parts) == 2 {
+		return false
+	}
+
+	if len(parts) == 3 && parts[1] == "library" {
+		return false
+	}
+
+	return true
 }
 
 func actuallyMutate(body []byte) ([]byte, error) {

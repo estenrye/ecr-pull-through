@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -17,6 +18,8 @@ func TestGeneratePatch(t *testing.T) {
 		podGeneratedName     string
 		expectedPatchApplied bool
 		expectedPatch        map[string]string
+		expectedIsDockerHubOfficialImage bool
+		expectedIsDockerHubUserImage bool
 	}{
 		{
 			name:                 "Already patched docker library image",
@@ -30,6 +33,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Already patched docker repository image with tag",
@@ -43,6 +48,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Already patched quay.io image",
@@ -56,6 +63,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Already patched quay.io image with tag",
@@ -69,6 +78,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Already patched ghcr.io image",
@@ -82,6 +93,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Already patched ghcr.io image with tag",
@@ -95,6 +108,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Already patched registry.k8s.io image",
@@ -108,6 +123,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Already patched registry.k8s.io image with tag",
@@ -121,6 +138,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Patch docker.io library image with docker.io prefix in image name. [containers]",
@@ -138,6 +157,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/containers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/library/myimage",
 			},
+			expectedIsDockerHubOfficialImage: true,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Patch docker.io library image with docker.io prefix in image name and tag. [initContainers]",
@@ -155,6 +176,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/initContainers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/library/myimage:i-want-a-pony-0.5.1",
 			},
+			expectedIsDockerHubOfficialImage: true,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Patch docker.io library image with docker.io prefix in image name and tag. [ephemeralContainers]",
@@ -172,6 +195,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/ephemeralContainers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/library/myimage:i-want-a-pony-0.5.1",
 			},
+			expectedIsDockerHubOfficialImage: true,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Patch non-library docker.io image with docker.io prefix in image name. [containers]",
@@ -189,6 +214,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/containers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/foo/bar",
 			},
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     true,
 		},
 		{
 			name:                 "Patch non-library docker.io image with docker.io prefix and tag image name. [initContainers]",
@@ -206,6 +233,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/initContainers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/foo/bar:baz-1.2.3",
 			},
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     true,
 		},
 		{
 			name:                 "Patch non-library docker.io image with docker.io prefix and tag in image name. [ephemeralContainers]",
@@ -223,6 +252,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/ephemeralContainers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/foo/bar:baz-1.2.3",
 			},
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     true,
 		},
 		{
 			name:                 "Patch docker.io library image without registry prefix",
@@ -240,6 +271,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/containers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/library/myimage",
 			},
+			expectedIsDockerHubOfficialImage: true,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Patch a tagged docker.io library image without registry prefix",
@@ -257,6 +290,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/containers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/library/myimage:latest",
 			},
+			expectedIsDockerHubOfficialImage: true,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Patch non-library docker.io image without registry prefix",
@@ -274,6 +309,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/containers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/myRepo/myimage",
 			},
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     true,
 		},
 		{
 			name:                 "Patch a tagged non-library docker.io image without registry prefix",
@@ -291,6 +328,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/containers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/docker.io/myRepo/myimage:latest",
 			},
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     true,
 		},
 		{
 			name:                 "When docker.io registry is not configured, do nothing to docker.io library image without registry prefix",
@@ -304,6 +343,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: true,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "When docker.io registry is not configured, do nothing to a tagged docker.io library image without registry prefix",
@@ -317,6 +358,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: true,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "When docker.io registry is not configured, do nothing to non-library docker.io image without registry prefix",
@@ -330,6 +373,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     true,
 		},
 		{
 			name:                 "When docker.io registry is not configured, do nothing to a tagged non-library docker.io image without registry prefix",
@@ -343,6 +388,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     true,
 		},
 		{
 			name:                 "When docker.io registry is not configured, do nothing to a docker.io library image with docker.io prefix in the image name",
@@ -356,6 +403,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: true,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "When docker.io registry is not configured, do nothing to a docker.io non-library image with docker.io prefix in the image name",
@@ -369,6 +418,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     true,
 		},
 		{
 			name:                 "When quay.io registry is not configured, do nothing to the image with quay.io prefix in the image name",
@@ -382,6 +433,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "When ghcr.io registry is not configured, do nothing to the image with ghcr.io prefix in the image name",
@@ -395,6 +448,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "When registry.k8s.io registry is not configured, do nothing to the image with registry.k8s.io prefix in the image name",
@@ -408,6 +463,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Webhook does not modify ECR library image with ECR Prefix in the image name.",
@@ -421,6 +478,8 @@ func TestGeneratePatch(t *testing.T) {
 			podGeneratedName:     "mypod-389fw48",
 			expectedPatchApplied: false,
 			expectedPatch:        nil,
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 		{
 			name:                 "Patch a tagged registry.k8s.io library image with registry prefix",
@@ -438,6 +497,8 @@ func TestGeneratePatch(t *testing.T) {
 				"path":  "/spec/containers/0/image",
 				"value": "1234567890123.dkr.ecr.us-west-2.amazonaws.com/registry.k8s.io/kube-apiserver:v1.30.2",
 			},
+			expectedIsDockerHubOfficialImage: false,
+			expectedIsDockerHubUserImage:     false,
 		},
 	}
 
@@ -449,6 +510,18 @@ func TestGeneratePatch(t *testing.T) {
 			}
 			if patchApplied && !equal(patch, tt.expectedPatch) {
 				t.Errorf("expected patch to be %v, got %v", tt.expectedPatch, patch)
+			}
+		})
+		t.Run(fmt.Sprintf("isDockerHubOfficialImage - %s", tt.name), func(t *testing.T) {
+			actual := isDockerHubOfficialImage(tt.containerImage)
+			if actual != tt.expectedIsDockerHubOfficialImage {
+				t.Errorf("expected isDockerHubOfficialImage to be %v, got %v", tt.expectedIsDockerHubOfficialImage, actual)
+			}
+		})
+		t.Run(fmt.Sprintf("isDockerHubUserImage - %s", tt.name), func(t *testing.T) {
+			actual := isDockerHubUserImage(tt.containerImage)
+			if actual != tt.expectedIsDockerHubUserImage {
+				t.Errorf("expected isDockerHubUserImage to be %v, got %v", tt.expectedIsDockerHubUserImage, actual)
 			}
 		})
 	}
