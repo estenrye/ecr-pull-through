@@ -88,7 +88,7 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           DISCORD_WEBHOOK: op://Home_Lab/Discord-Webhooks/github-actions-bot
       - name: Discord notification
-        uses: "Ilshidur/action-discord@08d9328877d6954120eef2b07abbc79249bb6210"
+        uses: "Ilshidur/action-discord@d2594079a10f1d6739ee50a2471f0ca57418b554"
         with:
           args: |
             {{ EVENT_PAYLOAD.repository.full_name }} has published Release: ${{github.ref_name}}
