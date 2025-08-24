@@ -62,7 +62,7 @@ jobs:
           echo "VERSION=$(yq -r .version ./chart/${{ env.CHART_NAME }}/Chart.yaml)" >> "$GITHUB_OUTPUT"
 
       - name: Load secrets
-        uses: 1password/load-secrets-action@v2
+        uses: 1password/load-secrets-action@v3
         with:
           # Export loaded secrets as environment variables
           export-env: true
