@@ -2,7 +2,7 @@ module mutation-webhook
 
 go 1.24.0
 
-toolchain go1.25.1
+toolchain go1.25.2
 
 require (
 	gopkg.in/yaml.v3 v3.0.1
